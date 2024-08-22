@@ -1,0 +1,471 @@
+Sub Button1_Click()
+    CopyWorksheetContents
+    UnmergeCells
+End Sub
+
+Sub CopyWorksheetContents()
+    Dim fso As Object
+    Dim folder As Object
+    Dim file As Object
+    Dim row_num As Long
+    Dim fileName As String
+    Dim Workbook As Workbook
+    Dim sourceWS As Worksheet
+    Dim targetWS As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim dataRange As Range
+    Dim destinationWS As Worksheet
+
+    ' Get the current folder
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set folder = fso.GetFolder(ThisWorkbook.Path)
+
+    ' Set the destination worksheet to the first worksheet in the workbook
+    Set destinationWS = ThisWorkbook.Worksheets(1)
+
+    ' Initialize the row counter to 1
+    row_num = 1
+
+    ' Print the filenames (without extension) to column F
+    For Each file In folder.Files
+        If Right(file.Name, 5) = ".xlsx" Or Right(file.Name, 4) = ".xls" Then
+            destinationWS.Range("F" & row_num).Value = Left(file.Name, Len(file.Name) - 5)
+            row_num = row_num + 1
+        End If
+    Next file
+
+    ' Reset the row counter to 1
+    row_num = 1
+
+    ' Loop through the files in the folder again
+    For Each file In folder.Files
+        ' Check if the file is an Excel workbook
+        If Right(file.Name, 5) = ".xlsx" Or Right(file.Name, 4) = ".xls" Then
+            ' Open the workbook
+            Set Workbook = Workbooks.Open(file.Path)
+
+            ' Get the first worksheet
+            Set sourceWS = Workbook.Worksheets(1)
+
+            ' Get the last row and column with data in the source worksheet
+            lastRow = sourceWS.Cells.SpecialCells(xlCellTypeLastCell).Row
+            lastCol = sourceWS.Cells.SpecialCells(xlCellTypeLastCell).Column
+
+            ' Copy the data range from the source worksheet
+            Set dataRange = sourceWS.Range(sourceWS.Cells(1, 1), sourceWS.Cells(lastRow, lastCol))
+            dataRange.Copy
+
+            ' Add a new worksheet to the current workbook
+            Set targetWS = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+            targetWS.Name = Left(file.Name, Len(file.Name) - 5)
+
+            ' Paste the data in the target worksheet
+            targetWS.Range("A1").PasteSpecial
+
+            ' Clear the clipboard
+            Application.CutCopyMode = False
+
+            ' Close the workbook without saving changes
+            Workbook.Close False
+
+            ' Increment the row counter
+            row_num = row_num + 1
+        End If
+    Next file
+
+    ' Clean up the objects
+    Set dataRange = Nothing
+    Set sourceWS = Nothing
+    Set Workbook = Nothing
+    Set file = Nothing
+    Set folder = Nothing
+    Set fso = Nothing
+
+
+    ' Activate the first worksheet
+    ThisWorkbook.Worksheets(1).Activate
+End Sub
+
+Sub UnmergeCells()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim i As Long, j As Long, k As Long
+    Dim mergedRange As Range
+    Dim mergedValue As Variant
+
+    Set wb = ThisWorkbook
+
+    ' Loop through all worksheets except the first one
+    For i = 2 To wb.Worksheets.Count
+        Set ws = wb.Worksheets(i)
+        lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        lastCol = 2 ' Unmerge only the first two columns
+
+        ' Unmerge cells in the first two columns
+        For j = 1 To lastRow
+            If ws.Cells(j, 1).MergeCells Then
+                ' Get the merged range and the value of the first cell in the merged range
+                Set mergedRange = ws.Range(ws.Cells(j, 1), ws.Cells(j + ws.Cells(j, 1).MergeArea.Rows.Count - 1, 2))
+                mergedValue = ws.Cells(j, 1).Value
+
+                ' Unmerge the cells and set the value to the original merged value
+                mergedRange.UnMerge
+                mergedRange.Value = mergedValue
+            End If
+        Next j
+
+        ' Autofit the columns
+        ws.Range("A1:B" & lastRow).Columns.AutoFit
+    Next i
+End Sub
+
+
+
+
+
+Sub Button2_Click()
+    DeleteUnusedWorksheets
+End Sub
+
+Sub DeleteUnusedWorksheets()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    ' Get the last row in column F
+    lastRow = ThisWorkbook.Worksheets(1).Range("F" & ThisWorkbook.Worksheets(1).Rows.Count).End(xlUp).Row
+
+    ' Loop through all worksheets in the workbook, starting from the second worksheet
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Index > 1 Then
+            ' Check if the worksheet name is in column F
+            If Application.WorksheetFunction.CountIf(ThisWorkbook.Worksheets(1).Range("F1:F" & lastRow), ws.Name) = 0 Then
+                ' If not, delete the worksheet without any warning
+                Application.DisplayAlerts = False
+                ws.Delete
+                Application.DisplayAlerts = True
+            End If
+        End If
+    Next ws
+End Sub
+
+
+
+
+
+Sub Button3_Click()
+    PrepareWorkbook
+End Sub
+
+Sub PrepareWorkbook()
+    Dim ws As Worksheet
+    Dim firstWS As Worksheet
+    
+    ' Clear the contents of column F
+    ThisWorkbook.Worksheets(1).Range("F:F").Clear
+    
+    ' Set the first worksheet as the active worksheet
+    Set firstWS = ThisWorkbook.Worksheets(1)
+    ThisWorkbook.Activate
+    firstWS.Activate
+    
+    ' Delete every worksheet except the first one
+    Application.DisplayAlerts = False
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> firstWS.Name Then
+            ws.Delete
+        End If
+    Next ws
+    Application.DisplayAlerts = True
+End Sub
+
+
+
+
+
+Sub Button4_Click()
+    CopyRowsWithKeyword
+    FormatKeywordRows
+End Sub
+
+Sub CopyRowsWithKeyword()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWs As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim i As Long, j As Long, k As Long
+    Dim keyword As String
+    Dim lastCopiedRow As Long
+    Dim wsName As String
+
+    Set wb = ThisWorkbook
+    keyword = wb.Worksheets("Main").Range("C10").Value
+
+    ' Create a new worksheet and move it to the back
+    Set newWs = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    newWs.Name = "Keyword Rows"
+    lastCopiedRow = 1
+
+    ' Activate the new worksheet to show the search progress
+    newWs.Activate
+
+    ' Copy the contents of row 1 from the second worksheet (columns A to Z) to the new worksheet
+    Set ws = wb.Worksheets(2)
+    ws.Range("A1:Z1").Copy newWs.Rows(1)
+
+    ' Loop through all worksheets except the first and last
+    For i = 2 To wb.Worksheets.Count - 1
+        Set ws = wb.Worksheets(i)
+        lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+        lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        wsName = ws.Name
+
+        For j = 1 To lastRow
+            For k = 1 To lastCol
+                If InStr(1, ws.Cells(j, k).Value, keyword, vbTextCompare) > 0 Then
+                    ' Copy the row to the new worksheet, starting from the last copied row + 1
+                    ws.Rows(j).Copy newWs.Rows(lastCopiedRow + 1)
+                    lastCopiedRow = lastCopiedRow + 1
+
+                    ' Update the new worksheet to make the progress visible
+                    newWs.Activate
+                    newWs.Range("A" & lastCopiedRow).Select
+                    newWs.Range("A" & lastCopiedRow, "IV" & lastCopiedRow).Copy
+                    newWs.Range("A" & lastCopiedRow).PasteSpecial xlPasteAll
+                    Application.CutCopyMode = False
+                    newWs.Activate
+
+                    ' Move to the next row without searching the remaining cells in the current row
+                    k = lastCol
+                    Exit For
+                End If
+            Next k
+        Next j
+    Next i
+End Sub
+
+Sub FormatKeywordRows()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    Set wb = ThisWorkbook
+    Set ws = wb.Worksheets(wb.Worksheets.Count)
+
+    ' Make the first row bold and font size 14
+    ws.Rows(1).Font.Bold = True
+    ws.Rows(1).Font.Size = 14
+
+    ' Make every row except the first row have font size 12
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+    For i = 2 To lastRow
+        ws.Rows(i).Font.Size = 12
+    Next i
+
+    ' Autofit the columns
+    ws.Columns.AutoFit
+    
+    ' Get the original widths of columns G and H
+    originalGWidth = ws.Columns("G").ColumnWidth
+    originalHWidth = ws.Columns("H").ColumnWidth
+
+    ' Calculate the new width for columns G and H
+    newGHWidth = (originalGWidth + originalHWidth) / 2
+    
+    ' Set the new width for columns G and H
+    ws.Columns("G").ColumnWidth = newGHWidth
+    ws.Columns("H").ColumnWidth = newGHWidth
+    
+    ' Autofit the rows
+    ws.Rows.AutoFit
+End Sub
+
+
+
+
+
+
+Sub Button5_Click()
+    DeleteResult
+End Sub
+
+Sub DeleteResult()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim lastKeywordWS As Worksheet
+
+    Set wb = ThisWorkbook
+
+    ' Check if any worksheet contains the string "Keyword"
+    For Each ws In wb.Worksheets
+        If InStr(1, ws.Name, "Keyword", vbTextCompare) > 0 Then
+            ' Save the reference to the last worksheet containing "Keyword"
+            Set lastKeywordWS = ws
+        End If
+    Next ws
+
+    ' If a worksheet containing "Keyword" was found, delete it
+    If Not lastKeywordWS Is Nothing Then
+        ' Suppress any warning messages
+        Application.DisplayAlerts = False
+
+        ' Delete the last worksheet containing "Keyword"
+        lastKeywordWS.Delete
+
+        ' Restore the warning messages
+        Application.DisplayAlerts = True
+    End If
+End Sub
+
+Sub Button6_Click()
+    CopyRowsWithAllKeywords
+    FormatKeywordRows
+End Sub
+
+Sub CopyRowsWithAllKeywords()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWs As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim i As Long, j As Long, k As Long
+    Dim keywords As Variant
+    Dim keywordList As Collection
+    Dim lastCopiedRow As Long
+    Dim wsName As String
+    Dim foundKeywords As Collection
+
+    Set wb = ThisWorkbook
+    keywords = Split(wb.Worksheets("Main").Range("C17").Value, " ")
+    Set keywordList = New Collection
+
+    ' Create a new worksheet and move it to the back
+    Set newWs = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    newWs.Name = "Keyword Rows All Keywords"
+    lastCopiedRow = 1
+
+    ' Activate the new worksheet to show the search progress
+    newWs.Activate
+
+    ' Copy the contents of row 1 from the second worksheet (columns A to Z) to the new worksheet
+    Set ws = wb.Worksheets(2)
+    ws.Range("A1:Z1").Copy newWs.Rows(1)
+
+    ' Populate the keywordList collection
+    For Each keyword In keywords
+        keywordList.Add keyword
+    Next keyword
+
+    ' Loop through all worksheets except the first and last
+    For i = 2 To wb.Worksheets.Count - 1
+        Set ws = wb.Worksheets(i)
+        lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+        lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        wsName = ws.Name
+
+        For j = 1 To lastRow
+            Set foundKeywords = New Collection
+            For k = 1 To lastCol
+                For Each keyword In keywordList
+                    If InStr(1, ws.Cells(j, k).Value, keyword, vbTextCompare) > 0 Then
+                        foundKeywords.Add keyword
+                    End If
+                Next keyword
+            Next k
+
+            ' Copy the row if all keywords are found, regardless of order
+            If foundKeywords.Count = keywordList.Count Then
+                ws.Rows(j).Copy newWs.Rows(lastCopiedRow + 1)
+                lastCopiedRow = lastCopiedRow + 1
+
+                ' Update the new worksheet to make the progress visible
+                newWs.Activate
+                newWs.Range("A" & lastCopiedRow).Select
+                newWs.Range("A" & lastCopiedRow, "IV" & lastCopiedRow).Copy
+                newWs.Range("A" & lastCopiedRow).PasteSpecial xlPasteAll
+                Application.CutCopyMode = False
+                newWs.Activate
+            End If
+        Next j
+    Next i
+End Sub
+
+
+
+
+
+Sub Button7_Click()
+    CopyRowsWithAnyKeyword
+    FormatKeywordRows
+End Sub
+
+Sub CopyRowsWithAnyKeyword()
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim newWs As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim i As Long, j As Long, k As Long
+    Dim keywords As Variant
+    Dim keywordList As Collection
+    Dim lastCopiedRow As Long
+    Dim wsName As String
+    Dim foundKeyword As Boolean
+
+    Set wb = ThisWorkbook
+    keywords = Split(wb.Worksheets("Main").Range("C17").Value, " ")
+    Set keywordList = New Collection
+
+    ' Create a new worksheet and move it to the back
+    Set newWs = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    newWs.Name = "Keyword Rows Any Keyword"
+    lastCopiedRow = 1
+
+    ' Activate the new worksheet to show the search progress
+    newWs.Activate
+
+    ' Copy the contents of row 1 from the second worksheet (columns A to Z) to the new worksheet
+    Set ws = wb.Worksheets(2)
+    ws.Range("A1:Z1").Copy newWs.Rows(1)
+
+    ' Populate the keywordList collection
+    For Each keyword In keywords
+        keywordList.Add keyword
+    Next keyword
+
+    ' Loop through all worksheets except the first and last
+    For i = 2 To wb.Worksheets.Count - 1
+        Set ws = wb.Worksheets(i)
+        lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+        lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        wsName = ws.Name
+
+        For j = 1 To lastRow
+            foundKeyword = False
+            For k = 1 To lastCol
+                For Each keyword In keywordList
+                    If InStr(1, ws.Cells(j, k).Value, keyword, vbTextCompare) > 0 Then
+                        foundKeyword = True
+                        Exit For
+                    End If
+                Next keyword
+                If foundKeyword Then Exit For
+            Next k
+
+            ' Copy the row if at least one keyword is found
+            If foundKeyword Then
+                ws.Rows(j).Copy newWs.Rows(lastCopiedRow + 1)
+                lastCopiedRow = lastCopiedRow + 1
+
+                ' Update the new worksheet to make the progress visible
+                newWs.Activate
+                newWs.Range("A" & lastCopiedRow).Select
+                newWs.Range("A" & lastCopiedRow, "IV" & lastCopiedRow).Copy
+                newWs.Range("A" & lastCopiedRow).PasteSpecial xlPasteAll
+                Application.CutCopyMode = False
+                newWs.Activate
+            End If
+        Next j
+    Next i
+End Sub
